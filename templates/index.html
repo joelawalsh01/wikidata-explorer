@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wikidata Knowledge Graph Explorer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>Wikidata Knowledge Graph Explorer</h1>
+        <div id="search-bar">
+            <input type="text" id="search-input" placeholder="Search Wikidata (e.g., The Clipse)">
+            <button id="search-btn">Search</button>
+        </div>
+        <div id="search-results"></div>
+    </header>
+
+    <main>
+        <div id="graph-container">
+            <div id="cy"></div>
+            <div id="graph-hint">Search for an entity to begin exploring the knowledge graph.</div>
+        </div>
+
+        <aside id="sidebar">
+            <h2>Selected Triples</h2>
+            <div id="triples-list">
+                <p class="hint">Shift+click nodes to select them. Their triples will appear here.</p>
+            </div>
+            <button id="generate-btn" disabled>Generate Questions</button>
+            <div id="generate-output"></div>
+        </aside>
+    </main>
+
+    <footer id="status-bar">Ready</footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
