@@ -1,0 +1,14 @@
+[project]
+name = "wikidata-traverse-rest"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "requests",
+    "networkx",
+    "matplotlib",
+    "pyyaml",
+    "flask",
+]
+
+[project.scripts]
+serve = "app:app.run"
