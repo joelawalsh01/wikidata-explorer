@@ -113,26 +113,59 @@ def api_expand():
         return jsonify({"error": "No QID provided"}), 400
 
     limit = config.get("expand_limit", 15)
-    level_edges, label_map, new_targets, sitelinks_map = traverse.sparql_fetch_level(
+
+    # Forward edges: qid → targets
+    fwd_edges, fwd_labels, fwd_targets, fwd_sitelinks = traverse.sparql_fetch_level(
         {qid}, limit, config
     )
+
+    # Reverse edges: sources → qid
+    rev_edges, rev_labels, rev_sources, rev_sitelinks = traverse.sparql_fetch_reverse(
+        {qid}, limit, config
+    )
+
+    # Merge label maps
+    label_map = {**fwd_labels, **rev_labels}
 
     nodes = []
     edges = []
     seen_nodes = set()
 
-    for source_qid, prop_id, target_qid in level_edges:
+    # Forward: new nodes are targets
+    for source_qid, prop_id, target_qid in fwd_edges:
         if target_qid not in seen_nodes:
             nodes.append({
                 "data": {
                     "id": target_qid,
                     "label": label_map.get(target_qid, target_qid),
                     "qid": target_qid,
-                    "depth": -1,  # frontend will assign real depth
-                    "sitelinks": sitelinks_map.get(target_qid, 0),
+                    "depth": -1,
+                    "sitelinks": fwd_sitelinks.get(target_qid, 0),
                 }
             })
             seen_nodes.add(target_qid)
+        edges.append({
+            "data": {
+                "source": source_qid,
+                "target": target_qid,
+                "label": label_map.get(prop_id, prop_id),
+                "property": prop_id,
+            }
+        })
+
+    # Reverse: new nodes are sources
+    for source_qid, prop_id, target_qid in rev_edges:
+        if source_qid not in seen_nodes:
+            nodes.append({
+                "data": {
+                    "id": source_qid,
+                    "label": label_map.get(source_qid, source_qid),
+                    "qid": source_qid,
+                    "depth": -1,
+                    "sitelinks": rev_sitelinks.get(source_qid, 0),
+                }
+            })
+            seen_nodes.add(source_qid)
         edges.append({
             "data": {
                 "source": source_qid,

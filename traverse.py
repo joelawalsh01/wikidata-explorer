@@ -256,6 +256,80 @@ LIMIT {total_limit}
     return edges, label_map, new_targets, sitelinks_map
 
 
+def sparql_fetch_reverse(target_qids, limit, config):
+    """
+    Fetches incoming edges for a batch of entities in one SPARQL query.
+    Mirrors sparql_fetch_level but reverses the triple pattern to find
+    entities that point AT the given targets.
+    Returns (edges, label_map, new_source_qids, sitelinks_map).
+    """
+    if not target_qids:
+        return [], {}, set(), {}
+
+    values = " ".join(f"wd:{qid}" for qid in target_qids)
+
+    total_limit = 100 * len(target_qids)
+
+    query = f"""
+SELECT ?source ?prop ?target ?sourceLabel ?propLabel ?targetLabel ?sourceSitelinks
+WHERE {{
+  VALUES ?target {{ {values} }}
+  ?source ?wdt ?target .
+  ?prop wikibase:directClaim ?wdt .
+  OPTIONAL {{ ?source wikibase:sitelinks ?sourceSitelinks . }}
+  FILTER(ISIRI(?source))
+  FILTER(STRSTARTS(STR(?source), STR(wd:)))
+  SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". }}
+}}
+LIMIT {total_limit}
+"""
+
+    result = sparql_query(query, config)
+    if not result:
+        return [], {}, set(), {}
+
+    edges = []
+    label_map = {}
+    new_sources = set()
+    sitelinks_map = {}
+    per_target_count = {}
+
+    for binding in result.get("results", {}).get("bindings", []):
+        source_uri = binding["source"]["value"]
+        prop_uri = binding["prop"]["value"]
+        target_uri = binding["target"]["value"]
+
+        source_qid = source_uri.rsplit("/", 1)[-1]
+        prop_id = prop_uri.rsplit("/", 1)[-1]
+        target_qid = target_uri.rsplit("/", 1)[-1]
+
+        # Enforce per-target limit client-side
+        per_target_count.setdefault(target_qid, 0)
+        if per_target_count[target_qid] >= limit:
+            continue
+        per_target_count[target_qid] += 1
+
+        edges.append((source_qid, prop_id, target_qid))
+        new_sources.add(source_qid)
+
+        # Collect sitelinks count for newly discovered source nodes
+        try:
+            sitelinks_map[source_qid] = int(binding.get("sourceSitelinks", {}).get("value", 0))
+        except (ValueError, TypeError):
+            sitelinks_map[source_qid] = 0
+
+        # Collect labels from SERVICE wikibase:label
+        source_label = binding.get("sourceLabel", {}).get("value", source_qid)
+        prop_label = binding.get("propLabel", {}).get("value", prop_id)
+        target_label = binding.get("targetLabel", {}).get("value", target_qid)
+
+        label_map[source_qid] = source_label
+        label_map[prop_id] = prop_label
+        label_map[target_qid] = target_label
+
+    return edges, label_map, new_sources, sitelinks_map
+
+
 def traverse_sparql(start_qid, start_label, max_depth, config):
     """
     Pure SPARQL BFS — one sparql_fetch_level() call per depth level.
