@@ -183,6 +183,8 @@ def api_generate():
     """Send triples to Ollama for question generation."""
     data = request.get_json()
     triples = data.get("triples", [])
+    fmt = data.get("format", "open")
+    graph_entities = data.get("graphEntities", [])
     if not triples:
         return jsonify({"error": "No triples provided"}), 400
 
@@ -191,7 +193,59 @@ def api_generate():
         for t in triples
     )
 
-    system_prompt = """You generate quiz questions from knowledge graph triples.
+    if fmt == "mcq":
+        entities_list = ", ".join(graph_entities) if graph_entities else ""
+        system_prompt = f"""You generate multiple choice quiz questions from knowledge graph triples.
+Each triple is: Subject -- Predicate -- Object.
+
+Output exactly 5 multiple choice questions. Each question has 4 options (A, B, C, D).
+Mark the correct answer by placing * after it.
+
+Use these entities from the knowledge graph as plausible distractors (wrong answers) where appropriate:
+{entities_list}
+
+Format:
+
+[RECALL] 1. Question about a fact directly stated in the triples
+A) Wrong answer
+B) Correct answer *
+C) Wrong answer
+D) Wrong answer
+
+[RECALL] 2. Question about a fact directly stated in the triples
+A) Wrong answer
+B) Wrong answer
+C) Correct answer *
+D) Wrong answer
+
+[CONNECT] 3. Question about how two entities relate
+A) Correct answer *
+B) Wrong answer
+C) Wrong answer
+D) Wrong answer
+
+[CONNECT] 4. Question about how two entities relate
+A) Wrong answer
+B) Wrong answer
+C) Wrong answer
+D) Correct answer *
+
+[INFER] 5. Question requiring reasoning beyond what is explicitly stated
+A) Wrong answer
+B) Correct answer *
+C) Wrong answer
+D) Wrong answer
+
+Rules:
+- Output ONLY the 5 questions with their options, nothing else
+- Each question starts with a tag: [RECALL], [CONNECT], or [INFER]
+- Each question has exactly 4 options: A), B), C), D)
+- Mark the correct answer with * at the end of the line
+- Vary which letter is correct across questions
+- Use entities from the provided list as plausible wrong answers where possible
+- No explanations, no preamble"""
+    else:
+        system_prompt = """You generate quiz questions from knowledge graph triples.
 Each triple is: Subject -- Predicate -- Object.
 
 Output exactly 5 questions using this format:

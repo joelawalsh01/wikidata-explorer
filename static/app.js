@@ -356,15 +356,27 @@ async function doGenerate() {
     var triples = gatherTriples();
     if (triples.length === 0) return;
 
+    var format = document.getElementById('question-format').value;
     var outputDiv = document.getElementById('generate-output');
     outputDiv.innerHTML = '<div class="loading">Generating questions... (this may take a moment)</div>';
     status('Sending triples to Ollama...');
+
+    var payload = { triples: triples, format: format };
+
+    if (format === 'mcq') {
+        var graphEntities = [];
+        cy.nodes().forEach(function(node) {
+            var label = node.data('label');
+            if (label) graphEntities.push(label);
+        });
+        payload.graphEntities = graphEntities;
+    }
 
     try {
         var resp = await fetch('/api/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ triples: triples }),
+            body: JSON.stringify(payload),
         });
         var data = await resp.json();
 
@@ -374,7 +386,11 @@ async function doGenerate() {
             return;
         }
 
-        outputDiv.innerHTML = renderQuestions(data.response);
+        if (format === 'mcq') {
+            outputDiv.innerHTML = renderMCQ(data.response);
+        } else {
+            outputDiv.innerHTML = renderQuestions(data.response);
+        }
         status('Questions generated.');
     } catch (err) {
         outputDiv.innerHTML = '<div class="error">Request failed: ' + escapeHtml(err.message) + '</div>';
@@ -389,6 +405,7 @@ function renderQuestions(text) {
     var tagPattern = /^\[(RECALL|CONNECT|INFER)\]\s*\d*\.?\s*(.*)/;
     var html = '';
     var parsed = false;
+    var plainLines = [];
 
     lines.forEach(function(line) {
         var m = line.match(tagPattern);
@@ -396,6 +413,7 @@ function renderQuestions(text) {
             parsed = true;
             var tag = m[1];
             var question = m[2];
+            plainLines.push('[' + tag + '] ' + question);
             html += '<div class="question-item">' +
                 '<span class="q-tag q-tag-' + tag.toLowerCase() + '">' + tag + '</span> ' +
                 escapeHtml(question) +
@@ -405,12 +423,94 @@ function renderQuestions(text) {
 
     // Fallback: if model didn't follow format, render raw text
     if (!parsed) {
+        plainLines = lines;
         html = '<div class="question-raw">' +
             escapeHtml(text).replace(/\n/g, '<br>') +
             '</div>';
     }
 
+    var plainText = plainLines.join('\n');
+    html += '<button class="copy-questions-btn" onclick="copyQuestions(this)" data-text="' +
+        escapeAttr(plainText) + '">Copy as text</button>';
+
     return html;
+}
+
+// --- Render MCQ ---
+
+function renderMCQ(text) {
+    var lines = text.split('\n').filter(function(l) { return l.trim(); });
+    var tagPattern = /^\[(RECALL|CONNECT|INFER)\]\s*\d*\.?\s*(.*)/;
+    var optionPattern = /^([A-D])\)\s*(.*)/;
+    var html = '';
+    var plainLines = [];
+    var parsed = false;
+    var inQuestion = false;
+
+    lines.forEach(function(line) {
+        var tagMatch = line.match(tagPattern);
+        var optMatch = line.match(optionPattern);
+
+        if (tagMatch) {
+            // Close previous question if open
+            if (inQuestion) {
+                html += '</div></div>';
+            }
+            parsed = true;
+            inQuestion = true;
+            var tag = tagMatch[1];
+            var question = tagMatch[2];
+            plainLines.push('[' + tag + '] ' + question);
+            html += '<div class="question-item mcq-question">' +
+                '<span class="q-tag q-tag-' + tag.toLowerCase() + '">' + tag + '</span> ' +
+                escapeHtml(question) +
+                '<div class="mcq-options">';
+        } else if (optMatch) {
+            var letter = optMatch[1];
+            var answerText = optMatch[2];
+            var isCorrect = answerText.endsWith('*');
+            if (isCorrect) {
+                answerText = answerText.slice(0, -1).trim();
+            }
+            var cls = 'mcq-option' + (isCorrect ? ' mcq-correct' : '');
+            plainLines.push(letter + ') ' + answerText + (isCorrect ? ' *' : ''));
+            html += '<div class="' + cls + '">' +
+                '<span class="mcq-letter">' + letter + ')</span> ' +
+                escapeHtml(answerText) +
+                '</div>';
+        }
+    });
+
+    // Close last question if still open
+    if (inQuestion) {
+        html += '</div></div>';
+    }
+
+    // Fallback: if model didn't follow format, render raw text
+    if (!parsed) {
+        plainLines = lines;
+        html = '<div class="question-raw">' +
+            escapeHtml(text).replace(/\n/g, '<br>') +
+            '</div>';
+    }
+
+    var plainText = plainLines.join('\n');
+    html += '<button class="copy-questions-btn" onclick="copyQuestions(this)" data-text="' +
+        escapeAttr(plainText) + '">Copy as text</button>';
+
+    return html;
+}
+
+function copyQuestions(btn) {
+    var text = btn.getAttribute('data-text');
+    navigator.clipboard.writeText(text).then(function() {
+        btn.textContent = 'Copied!';
+        setTimeout(function() { btn.textContent = 'Copy as text'; }, 1500);
+    });
+}
+
+function escapeAttr(str) {
+    return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 // --- Utility ---

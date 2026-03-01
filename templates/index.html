@@ -28,7 +28,13 @@
             <div id="triples-list">
                 <p class="hint">Shift+click nodes to select them. Their triples will appear here.</p>
             </div>
-            <button id="generate-btn" disabled>Generate Questions</button>
+            <div id="generate-controls">
+                <select id="question-format">
+                    <option value="open">Open-ended</option>
+                    <option value="mcq">Multiple Choice</option>
+                </select>
+                <button id="generate-btn" disabled>Generate Questions</button>
+            </div>
             <div id="generate-output"></div>
         </aside>
     </main>
