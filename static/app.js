@@ -361,7 +361,11 @@ async function doGenerate() {
     outputDiv.innerHTML = '<div class="loading">Generating questions... (this may take a moment)</div>';
     status('Sending triples to Ollama...');
 
+    var model = document.getElementById('model-select').value;
     var payload = { triples: triples, format: format };
+    if (model) {
+        payload.model = model;
+    }
 
     if (format === 'mcq') {
         var graphEntities = [];
@@ -512,6 +516,32 @@ function copyQuestions(btn) {
 function escapeAttr(str) {
     return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
+
+// --- Load Ollama Models ---
+
+async function loadModels() {
+    var select = document.getElementById('model-select');
+    try {
+        var resp = await fetch('/api/models');
+        var data = await resp.json();
+
+        if (data.models && data.models.length > 0) {
+            select.innerHTML = '';
+            data.models.forEach(function(name) {
+                var opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                select.appendChild(opt);
+            });
+        } else {
+            select.innerHTML = '<option value="">No models available</option>';
+        }
+    } catch (err) {
+        select.innerHTML = '<option value="">Default model</option>';
+    }
+}
+
+loadModels();
 
 // --- Utility ---
 

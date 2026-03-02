@@ -178,6 +178,25 @@ def api_expand():
     return jsonify({"nodes": nodes, "edges": edges})
 
 
+@app.route("/api/models", methods=["GET"])
+def api_models():
+    """Return list of locally available Ollama models."""
+    ollama_url = config.get("ollama_endpoint", "http://localhost:11434")
+    try:
+        resp = http_requests.get(f"{ollama_url}/api/tags", timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+        names = [m["name"] for m in data.get("models", [])]
+        return jsonify({"models": names})
+    except http_requests.exceptions.ConnectionError:
+        return jsonify({
+            "models": [],
+            "error": "Could not connect to Ollama. Is it running?"
+        })
+    except Exception as e:
+        return jsonify({"models": [], "error": str(e)})
+
+
 @app.route("/api/generate", methods=["POST"])
 def api_generate():
     """Send triples to Ollama for question generation."""
@@ -276,7 +295,7 @@ Rules:
     user_prompt = f"Triples:\n{triples_text}"
 
     ollama_url = config.get("ollama_endpoint", "http://localhost:11434")
-    model = config.get("ollama_model", "qwen3:8b")
+    model = data.get("model") or config.get("ollama_model", "qwen3:8b")
 
     try:
         resp = http_requests.post(

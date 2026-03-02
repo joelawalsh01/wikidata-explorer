@@ -265,6 +265,23 @@ main {
     color: #0a1128;
 }
 
+#model-select {
+    width: 100%;
+    padding: 8px 10px;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    border: 1px solid #0f3460;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    margin-bottom: 8px;
+}
+
+#model-select:focus {
+    outline: none;
+    border-color: #e94560;
+}
+
 #generate-controls {
     display: flex;
     gap: 8px;
