@@ -5,11 +5,11 @@ let selectedNodes = new Set();  // QIDs of shift-selected nodes
 const expandedNodes = new Set(); // QIDs already expanded
 
 const DEPTH_COLORS = {
-    0: '#f08080',  // lightcoral
-    1: '#87ceeb',  // skyblue
-    2: '#90ee90',  // lightgreen
+    0: '#007aff',  // blue — root
+    1: '#5ac8fa',  // teal
+    2: '#34c759',  // green
 };
-const DEPTH_COLOR_DEFAULT = '#dda0dd'; // plum for depth 3+
+const DEPTH_COLOR_DEFAULT = '#af52de'; // purple for depth 3+
 
 const HUB_SITELINKS_THRESHOLD = 50;
 
@@ -30,8 +30,8 @@ function initCytoscape() {
                     'text-wrap': 'wrap',
                     'text-max-width': '100px',
                     'font-size': '11px',
-                    'color': '#e0e0e0',
-                    'text-outline-color': '#1a1a2e',
+                    'color': '#1d1d1f',
+                    'text-outline-color': '#fafafa',
                     'text-outline-width': 2,
                     'background-color': function(ele) {
                         var d = ele.data('depth');
@@ -51,7 +51,7 @@ function initCytoscape() {
                         return ele.data('sitelinks') >= HUB_SITELINKS_THRESHOLD ? 4 : 1;
                     },
                     'border-color': function(ele) {
-                        return ele.data('sitelinks') >= HUB_SITELINKS_THRESHOLD ? '#ffd700' : '#555';
+                        return ele.data('sitelinks') >= HUB_SITELINKS_THRESHOLD ? '#ff9f0a' : '#d2d2d7';
                     },
                 }
             },
@@ -59,7 +59,7 @@ function initCytoscape() {
                 selector: 'node.selected-node',
                 style: {
                     'border-width': 4,
-                    'border-color': '#e94560',
+                    'border-color': '#007aff',
                 }
             },
             {
@@ -67,12 +67,12 @@ function initCytoscape() {
                 style: {
                     'label': 'data(label)',
                     'font-size': '9px',
-                    'color': '#aaa',
+                    'color': '#86868b',
                     'text-rotation': 'autorotate',
-                    'text-outline-color': '#1a1a2e',
+                    'text-outline-color': '#fafafa',
                     'text-outline-width': 1.5,
-                    'line-color': '#444',
-                    'target-arrow-color': '#444',
+                    'line-color': '#c7c7cc',
+                    'target-arrow-color': '#c7c7cc',
                     'target-arrow-shape': 'triangle',
                     'curve-style': 'bezier',
                     'width': 1.5,
