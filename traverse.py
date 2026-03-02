@@ -1,3 +1,4 @@
+import re
 import requests
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -97,7 +98,8 @@ def resolve_labels(qids):
 
     url = "https://www.wikidata.org/w/api.php"
     mapping = {}
-    qid_list = list(qids)
+    # Only send valid entity IDs (Q123, P456) to the API
+    qid_list = [q for q in qids if re.match(r'^[QP]\d+$', q)]
 
     # Action API allows up to 50 IDs per request — loop in batches
     for i in range(0, len(qid_list), 50):
@@ -139,7 +141,7 @@ def parse_entity_relations(data, limit):
         data_value = claim.get('value', {}).get('content', {})
 
         target_id = None
-        if isinstance(data_value, str) and data_value.startswith('Q'):
+        if isinstance(data_value, str) and re.match(r'^Q\d+$', data_value):
             target_id = data_value
         elif isinstance(data_value, dict):
             target_id = data_value.get('id')

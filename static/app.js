@@ -2,7 +2,9 @@
 
 let cy = null;          // Cytoscape instance
 let selectedNodes = new Set();  // QIDs of shift-selected nodes
-const expandedNodes = new Set(); // QIDs already expanded
+const expandedNodes = new Set(); // QIDs currently showing children
+const expandCache = new Map();    // qid → {nodes: [...], edges: [...]} — raw API response
+const expandChildren = new Map(); // qid → {nodeIds: Set, edgeIds: Set} — what was added to graph
 
 const DEPTH_COLORS = {
     0: '#007aff',  // blue — root
@@ -191,6 +193,8 @@ async function startTraversal(qid, label) {
     // Reset state
     selectedNodes.clear();
     expandedNodes.clear();
+    expandCache.clear();
+    expandChildren.clear();
     updateTriplesSidebar();
     document.getElementById('generate-output').innerHTML = '';
 
@@ -228,15 +232,20 @@ async function startTraversal(qid, label) {
 // --- Expand Node ---
 
 async function expandNode(qid) {
+    // Three-way toggle: expanded → collapse, cached → restore, new → fetch
     if (expandedNodes.has(qid)) {
-        status(qid + ' already expanded.');
+        collapseNode(qid);
+        return;
+    }
+
+    if (expandCache.has(qid)) {
+        restoreNode(qid);
         return;
     }
 
     var nodeEl = cy.getElementById(qid);
     var label = nodeEl.data('label') || qid;
     status('Expanding ' + label + '...');
-    expandedNodes.add(qid);
 
     try {
         var resp = await fetch('/api/expand', {
@@ -248,43 +257,115 @@ async function expandNode(qid) {
 
         if (data.error) {
             status('Error: ' + data.error);
-            expandedNodes.delete(qid);
             return;
         }
 
-        var addedCount = 0;
+        // Cache the raw API response
+        expandCache.set(qid, data);
 
-        // Assign depth based on parent node
-        var parentDepth = nodeEl.data('depth') || 0;
+        // Add elements and track what was added
+        var result = addExpandElements(qid, data);
 
-        // Add new nodes (skip if already in graph)
-        data.nodes.forEach(function(n) {
-            if (cy.getElementById(n.data.id).length === 0) {
-                n.data.depth = parentDepth + 1;
-                cy.add(n);
-                addedCount++;
-            }
-        });
-
-        // Add new edges (skip duplicates)
-        data.edges.forEach(function(e) {
-            var edgeId = e.data.source + '-' + e.data.property + '-' + e.data.target;
-            if (cy.getElementById(edgeId).length === 0) {
-                e.data.id = edgeId;
-                // Only add if both endpoints exist
-                if (cy.getElementById(e.data.source).length > 0 &&
-                    cy.getElementById(e.data.target).length > 0) {
-                    cy.add(e);
-                }
-            }
-        });
-
+        expandedNodes.add(qid);
         runLayout();
-        status('Expanded ' + label + ': +' + addedCount + ' nodes.');
+        status('Expanded ' + label + ': +' + result.addedCount + ' nodes.');
     } catch (err) {
         status('Expand failed: ' + err.message);
-        expandedNodes.delete(qid);
     }
+}
+
+function addExpandElements(qid, data) {
+    var nodeEl = cy.getElementById(qid);
+    var parentDepth = nodeEl.data('depth') || 0;
+    var addedNodeIds = new Set();
+    var addedEdgeIds = new Set();
+    var addedCount = 0;
+
+    // Add new nodes (skip if already in graph)
+    data.nodes.forEach(function(n) {
+        if (cy.getElementById(n.data.id).length === 0) {
+            n.data.depth = parentDepth + 1;
+            cy.add(n);
+            addedCount++;
+        }
+        addedNodeIds.add(n.data.id);
+    });
+
+    // Add new edges (skip duplicates)
+    data.edges.forEach(function(e) {
+        var edgeId = e.data.source + '-' + e.data.property + '-' + e.data.target;
+        if (cy.getElementById(edgeId).length === 0) {
+            e.data.id = edgeId;
+            if (cy.getElementById(e.data.source).length > 0 &&
+                cy.getElementById(e.data.target).length > 0) {
+                cy.add(e);
+            }
+        }
+        addedEdgeIds.add(edgeId);
+    });
+
+    expandChildren.set(qid, { nodeIds: addedNodeIds, edgeIds: addedEdgeIds });
+    return { addedCount: addedCount };
+}
+
+function collapseNode(qid) {
+    var nodeEl = cy.getElementById(qid);
+    var label = nodeEl.data('label') || qid;
+    var children = expandChildren.get(qid);
+
+    expandedNodes.delete(qid);
+
+    if (!children) return;
+
+    // Recursively collapse any expanded child nodes first
+    children.nodeIds.forEach(function(childId) {
+        if (expandedNodes.has(childId)) {
+            collapseNode(childId);
+        }
+    });
+
+    // Remove edges belonging to this expansion
+    children.edgeIds.forEach(function(edgeId) {
+        var edgeEl = cy.getElementById(edgeId);
+        if (edgeEl.length > 0) {
+            cy.remove(edgeEl);
+        }
+    });
+
+    // Remove child nodes unless another expanded node also claims them
+    children.nodeIds.forEach(function(childId) {
+        // Don't remove the parent node itself
+        if (childId === qid) return;
+
+        var neededElsewhere = false;
+        expandChildren.forEach(function(otherChildren, otherQid) {
+            if (otherQid !== qid && expandedNodes.has(otherQid) && otherChildren.nodeIds.has(childId)) {
+                neededElsewhere = true;
+            }
+        });
+
+        if (!neededElsewhere) {
+            var el = cy.getElementById(childId);
+            if (el.length > 0) {
+                cy.remove(el);
+            }
+        }
+    });
+
+    runLayout();
+    status('Collapsed ' + label + '.');
+}
+
+function restoreNode(qid) {
+    var nodeEl = cy.getElementById(qid);
+    var label = nodeEl.data('label') || qid;
+    var data = expandCache.get(qid);
+
+    var result = addExpandElements(qid, data);
+
+    expandedNodes.add(qid);
+    runLayout();
+    status('Restored ' + label + ': ' + result.addedCount + ' nodes (from cache).');
 }
 
 // --- Sidebar: Triples ---

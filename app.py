@@ -127,6 +127,15 @@ def api_expand():
     # Merge label maps
     label_map = {**fwd_labels, **rev_labels}
 
+    # Fallback: batch-resolve any IDs whose labels are still QIDs or URIs
+    unresolved = set()
+    for qid_key, label in label_map.items():
+        if label == qid_key or label.startswith("http://") or label.startswith("https://"):
+            unresolved.add(qid_key)
+    if unresolved:
+        fallback = traverse.resolve_labels(unresolved)
+        label_map.update(fallback)
+
     nodes = []
     edges = []
     seen_nodes = set()
