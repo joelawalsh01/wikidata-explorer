@@ -25,8 +25,7 @@ After installing, restart your terminal or follow the instructions printed by th
 
 ```sh
 # Clone the repo
-git clone https://github.com/your-username/wikidata-traverse-rest.git
-cd wikidata-traverse-rest
+gh repo clone joelawalsh01/wikidata-explorercd wikidata-traverse-rest
 
 # Install dependencies and run the web UI
 uv run python app.py
